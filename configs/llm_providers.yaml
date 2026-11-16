@@ -1,0 +1,25 @@
+# Fallback chain: tried in order. On rate limit / error, hop to the next.
+# Free limits and model IDs change often: verify before relying on them.
+# trains_on_data: true means skipped when PRIVACY_STRICT=1.
+providers:
+  - name: cerebras
+    base_url: https://api.cerebras.ai/v1
+    api_key_env: CEREBRAS_API_KEY
+    model: "REPLACE_WITH_CURRENT_MODEL_ID"
+    trains_on_data: false
+
+  - name: openrouter
+    base_url: https://openrouter.ai/api/v1
+    api_key_env: OPENROUTER_API_KEY
+    model: "REPLACE_WITH_A_:free_MODEL_ID"
+    trains_on_data: false   # check per-model policy
+
+  - name: gemini
+    base_url: https://generativelanguage.googleapis.com/v1beta/openai/
+    api_key_env: GEMINI_API_KEY
+    model: "REPLACE_WITH_CURRENT_MODEL_ID"
+    trains_on_data: true    # free tier may train on prompts
+
+retry:
+  max_attempts_per_provider: 2
+  backoff_seconds: 2

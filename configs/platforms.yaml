@@ -1,0 +1,31 @@
+youtube:
+  aspect: "16:9"
+  width: 1920
+  height: 1080
+  fps: 30
+  video_bitrate: "8M"
+  audio_bitrate: "192k"
+  loudness_lufs: -14
+  max_duration_s: 1200
+
+shorts:
+  aspect: "9:16"
+  width: 1080
+  height: 1920
+  fps: 30
+  video_bitrate: "6M"
+  audio_bitrate: "192k"
+  loudness_lufs: -14
+  max_duration_s: 60
+  caption_safe_zone_bottom_px: 380
+
+tiktok:
+  aspect: "9:16"
+  width: 1080
+  height: 1920
+  fps: 30
+  video_bitrate: "6M"
+  audio_bitrate: "192k"
+  loudness_lufs: -14
+  max_duration_s: 180
+  caption_safe_zone_bottom_px: 380
