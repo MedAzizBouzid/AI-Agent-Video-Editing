@@ -1,0 +1,12 @@
+name: "My Brand"
+logo: null            # path to logo png
+colors:
+  primary: "#1F6FEB"
+  secondary: "#0D1117"
+  accent: "#F5A623"
+fonts:
+  caption: "Arial"
+  title: "Arial"
+cta: "Follow for more"
+tone: "friendly, concise"
+language: "ar-TN"     # also: fr, en
