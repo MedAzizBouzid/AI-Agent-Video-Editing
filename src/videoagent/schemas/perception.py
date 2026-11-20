@@ -49,3 +49,4 @@ class PerceptionDoc(BaseModel):
     shots: list[Shot] = Field(default_factory=list)
     silences: list[Silence] = Field(default_factory=list)
     keyframes: list[str] = Field(default_factory=list, description="Paths to sampled frames")
+    language: str | None = Field(default=None, description="Language detected in the speech")

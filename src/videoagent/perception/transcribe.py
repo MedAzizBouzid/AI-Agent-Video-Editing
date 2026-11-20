@@ -1,0 +1,81 @@
+"""Speech-to-text with faster-whisper (CTranslate2). Runs locally; fits a 6 GB GPU.
+
+The model is passed in (or loaded lazily) so that `runtime/model_manager.py` can later own the
+GPU lifecycle: load Whisper, transcribe, unload, then load TTS. Importing this module does not
+import faster-whisper, so everything else works without it installed.
+"""
+
+from __future__ import annotations
+
+import math
+import os
+from typing import Any
+
+from ..schemas.perception import TranscriptSegment
+from ..tools._ffmpeg import PathLike
+
+DEFAULT_MODEL = os.environ.get("VIDEOAGENT_WHISPER_MODEL", "small")
+
+
+def load_model(size: str = DEFAULT_MODEL, device: str = "auto", compute_type: str = "auto") -> Any:
+    """Load a faster-whisper model. First use downloads the weights from Hugging Face.
+
+    On an RTX 3050 (6 GB): "small" in float16 uses ~2 GB; "medium" ~5 GB (tight, but possible if
+    nothing else is on the GPU). compute_type="int8_float16" roughly halves memory.
+    """
+    try:
+        from faster_whisper import WhisperModel
+    except ImportError as exc:  # pragma: no cover - exercised only without the package
+        raise RuntimeError("faster-whisper is not installed: pip install faster-whisper") from exc
+    return WhisperModel(size, device=device, compute_type=compute_type)
+
+
+def confidence_from_logprob(avg_logprob: float | None) -> float | None:
+    """avg_logprob is the mean token log-probability; exp() turns it into a 0..1 probability."""
+    if avg_logprob is None:
+        return None
+    return max(0.0, min(1.0, math.exp(avg_logprob)))
+
+
+def transcribe(
+    src: PathLike,
+    model: Any | None = None,
+    language: str | None = None,
+    *,
+    vad_filter: bool = True,
+    drop_no_speech_above: float = 0.9,
+) -> tuple[list[TranscriptSegment], str | None]:
+    """Transcribe `src`. Returns (segments, detected_language).
+
+    language: ISO code like "ar", "fr", "en"; None = auto-detect (less reliable on short or
+        mixed-language clips: set it when you know it).
+    vad_filter: skip non-speech with a voice-activity detector. This is the main defence against
+        Whisper inventing text ("Thanks for watching") over silence and music.
+    drop_no_speech_above: drop segments Whisper itself judges to be non-speech with at least this
+        probability.
+    """
+    whisper = model if model is not None else load_model()
+    segments, info = whisper.transcribe(
+        str(src),
+        language=language,
+        vad_filter=vad_filter,
+        vad_parameters={"min_silence_duration_ms": 500},
+        beam_size=5,
+        # Feeding earlier text back in is what makes Whisper loop and repeat itself.
+        condition_on_previous_text=False,
+    )
+    out: list[TranscriptSegment] = []
+    for seg in segments:  # a generator: decoding happens while we iterate
+        text = (getattr(seg, "text", "") or "").strip()
+        if not text:
+            continue
+        if (getattr(seg, "no_speech_prob", 0.0) or 0.0) > drop_no_speech_above:
+            continue
+        start, end = float(seg.start), float(seg.end)
+        if end <= start:
+            continue
+        out.append(TranscriptSegment(
+            start=start, end=end, text=text,
+            confidence=confidence_from_logprob(getattr(seg, "avg_logprob", None)),
+        ))
+    return out, getattr(info, "language", None)

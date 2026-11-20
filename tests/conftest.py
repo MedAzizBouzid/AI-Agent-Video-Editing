@@ -42,3 +42,22 @@ def music_file(tmp_path_factory):
     path = tmp_path_factory.mktemp("media") / "music.wav"
     _ffmpeg("-f", "lavfi", "-i", "sine=frequency=220:sample_rate=48000:duration=4", str(path))
     return path
+
+
+@pytest.fixture(scope="session")
+def scene_clip(tmp_path_factory):
+    """6 s, 640x360. Video: red 0-2, blue 2-4, green 4-6. Audio: tone, SILENCE 2-4, tone."""
+    path = tmp_path_factory.mktemp("media") / "scene.mp4"
+    _ffmpeg(
+        "-f", "lavfi", "-i", "color=c=red:s=640x360:r=30:d=2",
+        "-f", "lavfi", "-i", "color=c=blue:s=640x360:r=30:d=2",
+        "-f", "lavfi", "-i", "color=c=green:s=640x360:r=30:d=2",
+        "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000:d=2",
+        "-f", "lavfi", "-i", "anullsrc=r=48000:cl=mono:d=2",
+        "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000:d=2",
+        "-filter_complex",
+        "[0:v][1:v][2:v]concat=n=3:v=1:a=0[v];[3:a][4:a][5:a]concat=n=3:v=0:a=1[a]",
+        "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac",
+        str(path),
+    )
+    return path
