@@ -1,0 +1,16 @@
+{
+  "platform": "shorts",
+  "title": "Demo",
+  "clips": [
+    {"source": "raw.mp4", "start": 1, "end": 5, "fade_in_s": 0.3},
+    {"source": "raw.mp4", "start": 6, "end": 10, "fade_out_s": 0.5}
+  ],
+  "captions": [
+    {"start": 0.5, "end": 3.5, "text": "Welcome to the product demo"},
+    {"start": 4.0, "end": 7.5, "text": "مرحبا بكم في عرض المنتج الجديد، سهل وسريع"}
+  ],
+  "overlays": [
+    {"kind": "title", "text": "Product Demo", "start": 0, "end": 3, "position": "top"},
+    {"kind": "cta", "text": "اشترك الآن", "start": 6, "end": 8, "position": "bottom"}
+  ]
+}
