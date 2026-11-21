@@ -26,6 +26,7 @@ class ProviderConfig(BaseModel):
     # How to ask for JSON: "json_object" (widely supported), "json_schema" (strict, fewer
     # providers), or "none" (rely on the prompt alone). Downgraded automatically if rejected.
     json_mode: Literal["json_object", "json_schema", "none"] = "json_object"
+    vision: bool = False  # the configured model accepts images (needed for the critic's frame review)
     timeout_s: float = 60.0
     price_in_per_mtok: float = 0.0  # USD per million input tokens (0 for free tiers)
     price_out_per_mtok: float = 0.0

@@ -4,6 +4,7 @@
 #
 # trains_on_data: true  -> skipped when PRIVACY_STRICT=1 (use that for client footage)
 # json_mode: json_object | json_schema | none  -> how structured output is requested
+# vision: true -> the configured model accepts images (the critic uses it to look at frames)
 # price_*_per_mtok: USD per million tokens; leave 0 for free tiers, set it once you pay
 providers:
   - name: cerebras
@@ -23,6 +24,7 @@ providers:
     api_key_env: GEMINI_API_KEY
     model: "REPLACE_WITH_CURRENT_MODEL_ID"
     trains_on_data: true    # the free tier may train on prompts
+    vision: true            # Gemini models accept images
 
 retry:
   max_attempts_per_provider: 2   # tries on one provider before moving to the next

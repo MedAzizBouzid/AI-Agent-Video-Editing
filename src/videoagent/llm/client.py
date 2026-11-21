@@ -31,7 +31,7 @@ def _as_messages(messages: list[Message] | str) -> list[Message]:
     return [{"role": "user", "content": messages}] if isinstance(messages, str) else list(messages)
 
 
-def _with_system(messages: list[Message], system: str | None) -> list[Message]:
+def _with_system(messages: list[Message], system: str | None) -> list[Message]:  # noqa: D401
     """Merge `system` into the conversation: appended to an existing system message, else first."""
     if not system:
         return messages
@@ -48,6 +48,10 @@ class LLMClient:
     @property
     def usage(self) -> UsageLog:
         return self.chain.usage
+
+    @property
+    def supports_vision(self) -> bool:
+        return self.chain.supports_vision()
 
     def complete(
         self,
@@ -74,6 +78,7 @@ class LLMClient:
         max_tokens: int | None = None,
         tag: str = "",
         max_repairs: int | None = None,
+        needs_vision: bool = False,
     ) -> T:
         """Ask for JSON matching `schema` (a Pydantic model) and return the validated object.
 
@@ -91,6 +96,7 @@ class LLMClient:
             result = self.chain.chat(
                 convo, temperature=temperature, max_tokens=max_tokens, want_json=True,
                 json_schema=schema_dict, tag=tag if attempt == 0 else f"{tag}:repair",
+                needs_vision=needs_vision,
             )
             last = result.text
             try:

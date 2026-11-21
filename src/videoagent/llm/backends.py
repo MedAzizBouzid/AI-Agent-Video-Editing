@@ -11,9 +11,10 @@ from .errors import (
     AuthError, BadRequestError, LLMError, ModelNotFoundError, RateLimitError, TransientError,
 )
 from .providers import ProviderConfig
+from .images import IMAGE_TOKEN_ESTIMATE, content_size
 from .usage import estimate_tokens
 
-Message = dict[str, str]
+Message = dict[str, Any]  # content is a str, or a list of text/image parts (see images.py)
 
 
 @dataclass(frozen=True)
@@ -117,7 +118,9 @@ class OpenAIBackend:
         if usage and usage.prompt_tokens is not None and usage.completion_tokens is not None:
             prompt, completion, estimated = usage.prompt_tokens, usage.completion_tokens, False
         else:
-            prompt = estimate_tokens("".join(m["content"] for m in messages))
+            sizes = [content_size(m["content"]) for m in messages]
+            prompt = estimate_tokens("x" * sum(c for c, _ in sizes)) + IMAGE_TOKEN_ESTIMATE * sum(
+                n for _, n in sizes)
             completion, estimated = estimate_tokens(text), True
         return ChatResult(
             text=text, prompt_tokens=prompt, completion_tokens=completion, estimated=estimated,

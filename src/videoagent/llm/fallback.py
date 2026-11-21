@@ -81,11 +81,17 @@ class FallbackChain:
         want_json: bool = False,
         json_schema: dict[str, Any] | None = None,
         tag: str = "",
+        needs_vision: bool = False,
     ) -> ChatResult:
         failures = {p.name: p.disabled for p in self.providers if p.disabled}
+        if needs_vision:
+            for p in self.providers:
+                if p.disabled is None and not p.cfg.vision:
+                    failures[p.name] = "model has no image support (set `vision: true` if it does)"
         passes = 0
         while True:
-            active = [p for p in self.providers if p.disabled is None]
+            active = [p for p in self.providers
+                      if p.disabled is None and (p.cfg.vision or not needs_vision)]
             if not active:
                 raise AllProvidersFailed(failures)
             now = self._clock()
@@ -109,6 +115,10 @@ class FallbackChain:
             cooling = [p.cooldown_until - now for p in active if p.cooldown_until > now]
             if not cooling or passes >= MAX_PASSES:
                 raise AllProvidersFailed(failures, retry_after=min(cooling) if cooling else None)
+
+    def supports_vision(self) -> bool:
+        """True if at least one enabled provider can take images."""
+        return any(p.disabled is None and p.cfg.vision for p in self.providers)
 
     def status(self) -> dict[str, str]:
         """provider name -> 'ready' | 'cooling down (Ns)' | disabled reason (for the CLI)."""
