@@ -16,7 +16,7 @@ running FFmpeg. `render_edl` is the end-to-end entry point.
 from __future__ import annotations
 
 import tempfile
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
@@ -31,10 +31,16 @@ from ..tools.export import export
 from ..tools.overlay import OVERLAY_STYLES, logo_filter, logo_overlays, text_overlay_events
 from ..tools.reframe import reframe_graph
 from ..tools.trim import atempo_chain
+from ..tools.voiceover import ScheduledLine, TTSBackend, VoiceoverUnavailable, prepare_voiceover
 from .validator import EDLValidationError, validate_edl
 
 ReframeMode = Literal["auto", "crop", "pad", "blur"]
 ASPECT_TOLERANCE = 0.02  # source and target aspect ratios within 2% count as "the same"
+VOICE_GAIN = 1.0
+# Ducking: while the voice is louder than DUCK_THRESHOLD (linear amplitude, ~ -28 dB) the original
+# audio and music are compressed by DUCK_RATIO:1 so speech stays intelligible over them.
+DUCK_THRESHOLD = 0.04
+DUCK_RATIO = 8
 
 
 @dataclass
@@ -82,10 +88,13 @@ def compile_edl(
     reframe_mode: ReframeMode = "auto",
     font: str = "Arial",
     fonts_dir: PathLike | None = None,
+    voiceover: Sequence[ScheduledLine] = (),
 ) -> CompiledEDL:
     """Build the FFmpeg inputs and filter graph for `edl`. Writes `captions.ass` into `workdir`.
 
     infos: clip.source -> MediaInfo, for every source used (from ffprobe or a PerceptionDoc)
+    voiceover: synthesised lines already placed on the timeline (see tools.voiceover); the
+        original audio and music are ducked under them
     """
     workdir = Path(workdir)
     workdir.mkdir(parents=True, exist_ok=True)
@@ -195,12 +204,45 @@ def compile_edl(
         )
         if audio:
             graph.append(
-                f"[{audio}][music]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[aout]"
+                f"[{audio}][music]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[amixed]"
             )
+            audio = "amixed"
         else:
-            graph.append("[music]anull[aout]")
-        audio = "aout"
-    elif audio:
+            audio = "music"
+
+    # ---- voiceover: delayed to its start time, original audio + music ducked under it ----
+    if voiceover:
+        labels = ""
+        for j, line in enumerate(voiceover):
+            input_args += ["-i", str(line.path)]
+            idx = n_inputs
+            n_inputs += 1
+            ms = round(line.start * 1000)
+            graph.append(
+                f"[{idx}:a]aresample=48000,aformat=channel_layouts=stereo,volume={VOICE_GAIN:g},"
+                f"adelay={ms}|{ms}[vo{j}]"
+            )
+            labels += f"[vo{j}]"
+        if len(voiceover) == 1:
+            graph.append("[vo0]anull[vo]")
+        else:
+            graph.append(
+                f"{labels}amix=inputs={len(voiceover)}:duration=longest:dropout_transition=0:normalize=0[vo]"
+            )
+        if audio:
+            graph.append("[vo]asplit=2[vo_sc][vo_mix]")
+            graph.append(
+                f"[{audio}][vo_sc]sidechaincompress=threshold={DUCK_THRESHOLD}:ratio={DUCK_RATIO}"
+                ":attack=20:release=400[ducked]"
+            )
+            graph.append(
+                "[ducked][vo_mix]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[avoiced]"
+            )
+        else:  # a video with no audio at all: the voice is the soundtrack, padded to full length
+            graph.append(f"[vo]apad=whole_dur={total:.3f},atrim=duration={total:.3f}[avoiced]")
+        audio = "avoiced"
+
+    if audio:
         graph.append(f"[{audio}]anull[aout]")
         audio = "aout"
 
@@ -233,8 +275,15 @@ def render_edl(
     font: str = "Arial",
     fonts_dir: PathLike | None = None,
     keep_master: bool = False,
+    tts: TTSBackend | None = None,
+    language: str | None = None,
+    tts_cache_dir: PathLike | None = None,
 ) -> Path:
     """Validate, compile and render `edl` to `dst`. Raises EDLValidationError on an invalid EDL.
+
+    Voiceover: if the EDL has voiceover lines, `tts` is required (VoiceoverUnavailable otherwise,
+    because silently dropping requested narration is worse than failing). `language` (e.g. "ar-TN")
+    selects the voice; synthesised audio is cached in `tts_cache_dir` (default: a temp folder).
 
     Two stages: (1) one filter_complex render to a high-quality master, (2) `export()` for
     two-pass loudness normalisation and the platform bitrate.
@@ -247,10 +296,16 @@ def render_edl(
     sources = {c.source for c in edl.clips}
     infos = {s: probe(_resolve(s, base_dir)) for s in sources}
     result = validate_edl(
-        edl, {s: i.duration for s, i in infos.items()}, spec, base_dir=base_dir
+        edl, {s: i.duration for s, i in infos.items()}, spec, base_dir=base_dir,
+        voiceover_available=tts is not None,
     )
     if not result.ok:
         raise EDLValidationError(result)
+    if edl.voiceover and tts is None:
+        raise VoiceoverUnavailable(
+            "the EDL has voiceover lines but no TTS backend is configured: pass `tts=` "
+            "(see configs/tts.yaml and tools.tts_config.build_tts) or remove the voiceover"
+        )
 
     cleanup = None
     if workdir is None:
@@ -258,9 +313,16 @@ def render_edl(
         workdir = cleanup.name
     try:
         workdir = Path(workdir)
+        scheduled: list[ScheduledLine] = []
+        if edl.voiceover and tts is not None:
+            scheduled, _notes = prepare_voiceover(
+                edl, tts, tts_cache_dir if tts_cache_dir is not None else workdir / "tts",
+                language=language,
+            )
         compiled = compile_edl(
             edl, spec, infos, workdir,
             base_dir=base_dir, reframe_mode=reframe_mode, font=font, fonts_dir=fonts_dir,
+            voiceover=scheduled,
         )
         master = workdir / "master.mp4"
         run([

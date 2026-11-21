@@ -12,6 +12,7 @@ import json
 import os
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
+from typing import Any
 from pathlib import Path
 
 from ..schemas.perception import PerceptionDoc, SourceInfo, TranscriptSegment
@@ -19,7 +20,7 @@ from ..tools._ffmpeg import PathLike, probe
 from .frames import sample_keyframes
 from .scenes import detect_shots
 from .silence import detect_silences
-from .transcribe import DEFAULT_MODEL, transcribe
+from .transcribe import DEFAULT_MODEL, register_whisper, transcribe
 
 TranscribeFn = Callable[[PathLike], tuple[list[TranscriptSegment], str | None]]
 _CHUNK = 4 * 1024 * 1024
@@ -81,11 +82,14 @@ def build_perception_doc(
     transcribe_fn: TranscribeFn | None = None,
     use_cache: bool = True,
     source_name: str | None = None,
+    model_manager: Any | None = None,
 ) -> PerceptionDoc:
     """Analyse `src` (or load the cached analysis).
 
     transcribe_fn: replaces Whisper (tests, a hosted STT API, or a model owned by model_manager).
         Default loads faster-whisper lazily on first use.
+    model_manager: a runtime.ModelManager. When given (and no transcribe_fn), Whisper is loaded
+        through it, so it shares the GPU safely with other models and stays loaded across files.
     source_name: what to store in `source.path`. The planner must use this exact string as
         `clip.source` in the EDL, so prefer a short stable name; defaults to `str(src)`.
     """
@@ -104,7 +108,11 @@ def build_perception_doc(
     transcript: list[TranscriptSegment] = []
     language: str | None = None
     if info.has_audio:
-        if transcribe_fn is None:
+        if transcribe_fn is None and model_manager is not None:
+            name = register_whisper(model_manager, cfg.whisper_model)
+            with model_manager.use(name) as model:
+                transcript, language = transcribe(src, model, cfg.language)
+        elif transcribe_fn is None:
             from .transcribe import load_model
 
             model = load_model(cfg.whisper_model)

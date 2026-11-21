@@ -30,6 +30,24 @@ def load_model(size: str = DEFAULT_MODEL, device: str = "auto", compute_type: st
     return WhisperModel(size, device=device, compute_type=compute_type)
 
 
+# Approximate VRAM in MB for faster-whisper in float16 (decoder state and activations included).
+# These are estimates used for budgeting, not measurements: verify on your card with nvidia-smi.
+WHISPER_VRAM_MB = {"tiny": 500, "base": 700, "small": 1500, "medium": 3500,
+                   "large-v2": 5500, "large-v3": 5500}
+
+
+def register_whisper(
+    manager: Any, size: str = DEFAULT_MODEL, device: str = "auto", compute_type: str = "auto"
+) -> str:
+    """Register Whisper with a ModelManager and return the name to pass to `manager.use()`."""
+    name = f"whisper:{size}"
+    manager.register(
+        name, lambda: load_model(size, device, compute_type),
+        vram_mb=WHISPER_VRAM_MB.get(size, 3000),
+    )
+    return name
+
+
 def confidence_from_logprob(avg_logprob: float | None) -> float | None:
     """avg_logprob is the mean token log-probability; exp() turns it into a 0..1 probability."""
     if avg_logprob is None:

@@ -1,0 +1,25 @@
+# Text-to-speech: which backend and voice speaks each language.
+#
+#   piper   offline, CPU. Needs `pip install piper-tts` and voice files from
+#           https://huggingface.co/rhasspy/piper-voices (the .onnx AND its .onnx.json together).
+#           Arabic: only ar_JO (Jordanian) exists; there is no Tunisian Piper voice.
+#   kokoro  better quality, small model. `pip install kokoro soundfile`, plus espeak-ng for French.
+#           Supports en, fr, es, hi, it, pt, ja, zh. It does NOT support Arabic.
+#   edge    free online Microsoft voices (`pip install edge-tts`), including Tunisian Arabic
+#           (list them with `edge-tts --list-voices`). Unofficial endpoint: its commercial terms
+#           are unclear, so check them (or use Azure AI Speech) before using it for clients.
+#
+# A language like "ar-TN" falls back to "ar". `voice` can be a model path (piper), a voice id
+# (kokoro, edge), or an alias.
+default_language: en
+
+languages:
+  en: {backend: kokoro, voice: af_heart}
+  fr: {backend: kokoro, voice: ff_siwis}
+  ar: {backend: piper, voice: models/piper/ar_JO-kareem-medium.onnx}
+  # Tunisian Arabic via the online service (check its terms before commercial use):
+  # ar-TN: {backend: edge, voice: ar-TN-HediNeural}
+
+piper:
+  binary: piper
+  args: ["-m", "{model}", "-f", "{out}"]   # verified against piper-tts 1.8; text is read from stdin

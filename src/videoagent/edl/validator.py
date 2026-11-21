@@ -66,12 +66,14 @@ def validate_edl(
     platform: PlatformSpec | None = None,
     *,
     base_dir: str | Path | None = None,
+    voiceover_available: bool = False,
 ) -> ValidationResult:
     """Check `edl` against the known sources and (optionally) its platform spec.
 
     source_durations: clip.source string -> duration in seconds of that file
     platform: the PlatformSpec for edl.platform; enables the max-duration check
     base_dir: relative asset paths (logo, music) are resolved against this
+    voiceover_available: a TTS backend is configured; without one voiceover lines cannot be rendered
     """
     issues: list[ValidationIssue] = []
 
@@ -174,9 +176,9 @@ def validate_edl(
         if line.start > total + EPS:
             add("error", "voiceover_beyond_video",
                 f"starts at {line.start:.2f}s but the video is only {total:.2f}s long.", where)
-    if edl.voiceover:
+    if edl.voiceover and not voiceover_available:
         add("warning", "voiceover_not_rendered",
-            "voiceover lines are accepted but not rendered yet (text-to-speech arrives in step 7).",
+            "voiceover lines will not be rendered: no text-to-speech backend is configured.",
             "voiceover")
 
     # ---- audio ----------------------------------------------------------------------------
