@@ -1,6 +1,10 @@
-# Fallback chain: tried in order. On rate limit / error, hop to the next.
-# Free limits and model IDs change often: verify before relying on them.
-# trains_on_data: true means skipped when PRIVACY_STRICT=1.
+# Fallback chain: providers are tried in this order. On a rate limit or an outage the next one
+# is used. Free limits and model IDs change often, so DO NOT trust the IDs below:
+# run `python -m apps.llm_check` to list the model IDs each provider currently offers.
+#
+# trains_on_data: true  -> skipped when PRIVACY_STRICT=1 (use that for client footage)
+# json_mode: json_object | json_schema | none  -> how structured output is requested
+# price_*_per_mtok: USD per million tokens; leave 0 for free tiers, set it once you pay
 providers:
   - name: cerebras
     base_url: https://api.cerebras.ai/v1
@@ -12,14 +16,16 @@ providers:
     base_url: https://openrouter.ai/api/v1
     api_key_env: OPENROUTER_API_KEY
     model: "REPLACE_WITH_A_:free_MODEL_ID"
-    trains_on_data: false   # check per-model policy
+    trains_on_data: false   # check the policy of the specific model you pick
 
   - name: gemini
     base_url: https://generativelanguage.googleapis.com/v1beta/openai/
     api_key_env: GEMINI_API_KEY
     model: "REPLACE_WITH_CURRENT_MODEL_ID"
-    trains_on_data: true    # free tier may train on prompts
+    trains_on_data: true    # the free tier may train on prompts
 
 retry:
-  max_attempts_per_provider: 2
-  backoff_seconds: 2
+  max_attempts_per_provider: 2   # tries on one provider before moving to the next
+  backoff_seconds: 2             # wait before a retry; doubles each time
+  max_wait_s: 30                 # longest we sleep waiting for a rate limit to clear
+  default_cooldown_s: 60         # how long to avoid a provider after a 429 with no Retry-After
