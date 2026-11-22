@@ -10,10 +10,12 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from videoagent.console import use_utf8_console
 from videoagent.perception import PerceptionConfig, build_perception_doc, compact_for_llm
 
 
 def main(argv: list[str] | None = None) -> int:
+    use_utf8_console()
     p = argparse.ArgumentParser(description="Build a PerceptionDoc for a video")
     p.add_argument("video", type=Path)
     p.add_argument("--model", default=PerceptionConfig().whisper_model,

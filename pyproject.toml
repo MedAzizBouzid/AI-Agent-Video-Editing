@@ -9,7 +9,6 @@ dependencies = [
     "numpy>=1.26",
     "python-dotenv>=1.0",
     "openai>=1.40",
-    "typer>=0.12",
     "faster-whisper>=1.0",
     "langgraph>=0.2",
 ]
@@ -22,7 +21,7 @@ tts = ["piper-tts>=1.2", "kokoro>=0.9", "soundfile>=0.12", "edge-tts>=6.1"]
 dev = ["pytest>=8.0", "ruff>=0.5"]
 
 [project.scripts]
-videoagent = "apps.cli:app"
+videoagent = "apps.cli:entrypoint"
 
 [build-system]
 requires = ["hatchling"]

@@ -14,10 +14,12 @@ from __future__ import annotations
 import argparse
 import logging
 
+from videoagent.console import use_utf8_console
 from videoagent.llm import LLMError, build_client
 
 
 def main(argv: list[str] | None = None) -> int:
+    use_utf8_console()
     p = argparse.ArgumentParser(description="Check configured LLM providers")
     p.add_argument("--config", default=None, help="path to llm_providers.yaml")
     p.add_argument("--models", action="store_true", help="list model IDs each provider offers")

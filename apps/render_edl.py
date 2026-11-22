@@ -12,11 +12,13 @@ import json
 import sys
 from pathlib import Path
 
+from videoagent.console import use_utf8_console
 from videoagent.edl import EDLValidationError, render_edl
 from videoagent.schemas import EDL
 
 
 def main(argv: list[str] | None = None) -> int:
+    use_utf8_console()
     p = argparse.ArgumentParser(description="Render an EDL JSON file to a video")
     p.add_argument("edl", type=Path)
     p.add_argument("output", type=Path)

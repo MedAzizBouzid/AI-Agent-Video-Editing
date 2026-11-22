@@ -13,6 +13,7 @@ import argparse
 import json
 from pathlib import Path
 
+from videoagent.console import use_utf8_console
 from videoagent.config import load_platforms
 from videoagent.critic import critique
 from videoagent.llm import build_client
@@ -22,6 +23,7 @@ EXIT = {"pass": 0, "revise": 1, "fail": 2}
 
 
 def main(argv: list[str] | None = None) -> int:
+    use_utf8_console()
     p = argparse.ArgumentParser(description="Critique a rendered video")
     p.add_argument("video", type=Path)
     p.add_argument("--platform", required=True, choices=sorted(load_platforms()))

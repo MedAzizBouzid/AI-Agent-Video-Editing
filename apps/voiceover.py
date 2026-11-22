@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from videoagent.console import use_utf8_console
 from videoagent.runtime import ModelManager
 from videoagent.tools._ffmpeg import probe
 from videoagent.tools.tts_config import build_tts
@@ -19,6 +20,7 @@ from videoagent.tools.voiceover import TTSError
 
 
 def main(argv: list[str] | None = None) -> int:
+    use_utf8_console()
     p = argparse.ArgumentParser(description="Synthesise a line of speech")
     p.add_argument("text")
     p.add_argument("output", type=Path, help="output path without extension")
