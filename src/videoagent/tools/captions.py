@@ -186,8 +186,17 @@ def ass_filter(ass_path: PathLike, fonts_dir: PathLike | None = None) -> str:
 
 
 def escape_filter_value(value: PathLike) -> str:
-    """Escape a path for use as a filter option value (handles ':' ',' quotes and backslashes)."""
+    """Escape a path for use as a filter option value inside a filtergraph string.
+
+    FFmpeg parses the string twice: first the graph (where , ; [ ] ' and \\ are special), then each
+    filter's options (where : ' and \\ are special). A character that matters to the option parser,
+    like the ':' in 'C:/Users', must therefore be escaped for BOTH levels. A single backslash is
+    consumed by the graph parser and the option parser then splits the path at the colon, which
+    fails on Windows drive letters.
+    """
     text = str(value).replace("\\", "/")
-    for ch in ("\\", "'", ":", ",", "[", "]", ";", " "):
+    for ch in ("\\", "'", ":"):  # level 2: the filter's option parser
+        text = text.replace(ch, "\\" + ch)
+    for ch in ("\\", "'", "[", "]", ",", ";"):  # level 1: the filtergraph parser
         text = text.replace(ch, "\\" + ch)
     return text

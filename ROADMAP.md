@@ -22,5 +22,6 @@ Each step fits in one Claude session. Start a session by reading this file; end 
 - Voiceover lines are validated but not rendered until step 7.
 
 - Encoder: `VIDEOAGENT_ENCODER=auto|nvenc|libx264` (default `auto` tries NVENC and falls back to libx264). Set `nvenc` on your RTX 3050 machine.
+- Windows: tested on a real Windows PC (FFmpeg 9.1 from winget). Found and fixed: filter paths with a drive-letter colon need escaping for both FFmpeg parsers (`escape_filter_value`); the test helpers no longer assume POSIX paths or shebang scripts.
 - Tests need `ffmpeg` and `ffprobe` on PATH. They generate their own test clips.
 - Run tests: `PYTHONPATH=src python -m pytest -q tests`

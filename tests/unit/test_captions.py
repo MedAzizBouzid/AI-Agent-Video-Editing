@@ -88,7 +88,7 @@ def test_empty_captions_are_skipped():
 
 
 def test_escape_filter_value_escapes_special_chars():
-    assert escape_filter_value("C:\\tmp\\a b.ass") == "C\\:/tmp/a\\ b.ass"
+    assert escape_filter_value("C:\\tmp\\a b.ass") == "C\\\\:/tmp/a b.ass"
     assert ass_filter("/tmp/x.ass") == "ass=filename=/tmp/x.ass"
     assert "fontsdir=/fonts" in ass_filter("/tmp/x.ass", "/fonts")
 
@@ -139,3 +139,29 @@ def test_logo_filter_has_enable_window():
     f = logo_filter("vin", "2:v", "vout", ov, SHORTS)
     assert "between(t,1.000,3.000)" in f
     assert f.startswith("[2:v]scale=") and "[vin]" in f and f.endswith("[vout]")
+
+
+@pytest.mark.skipif(__import__("shutil").which("ffmpeg") is None, reason="ffmpeg not installed")
+@pytest.mark.parametrize("dirname", ["C:colon", "it's", "a,b [c];d"])
+def test_ass_filter_survives_paths_that_are_special_to_ffmpeg(tmp_path, dirname):
+    """Regression: a Windows drive letter ('C:/...') made FFmpeg split the path at the colon, because
+    the path was escaped for only one of the two parsers it passes through."""
+    import subprocess
+
+    d = tmp_path / dirname
+    d.mkdir()
+    ass = d / "c.ass"
+    ass.write_text(
+        "[Script Info]\nScriptType: v4.00+\nPlayResX: 320\nPlayResY: 240\n[V4+ Styles]\n"
+        "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, "
+        "Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, "
+        "Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
+        "Style: D,Arial,40,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,0,5,10,10,10,1\n"
+        "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+        "Dialogue: 0,0:00:00.00,0:00:02.00,D,,0,0,0,,HI\n", encoding="utf-8")
+    out = d / "o.png"
+    graph = f"color=c=blue:s=320x240:d=1[v];[v]{ass_filter(ass)}[out]"
+    r = subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-filter_complex", graph,
+                        "-map", "[out]", "-frames:v", "1", str(out)], capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    assert out.exists()

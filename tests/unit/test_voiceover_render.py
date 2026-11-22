@@ -46,7 +46,7 @@ def test_voice_is_delayed_and_the_background_is_ducked(tmp_path):
     assert "[acat][vo_sc]sidechaincompress=threshold=0.04:ratio=8" in g
     assert "[ducked][vo_mix]amix=inputs=2:duration=first" in g
     assert g.endswith("[avoiced]anull[aout]") or "[avoiced]anull[aout]" in g
-    assert c.input_args[-2:] == ["-i", "/v/0.wav"] and c.has_audio
+    assert c.input_args[-2:] == ["-i", str(Path("/v/0.wav"))] and c.has_audio
     assert_labels_balanced(g)
 
 
@@ -54,7 +54,7 @@ def test_several_lines_are_mixed_before_ducking(tmp_path):
     c = compile_edl(edl(), YT, {"a.mp4": TONE}, tmp_path, voiceover=scheduled((0.5, 1.0), (2.5, 1.0)))
     assert "[vo0][vo1]amix=inputs=2:duration=longest" in c.filter_graph
     assert "adelay=500|500" in c.filter_graph and "adelay=2500|2500" in c.filter_graph
-    assert c.input_args[-4:] == ["-i", "/v/0.wav", "-i", "/v/1.wav"]
+    assert c.input_args[-4:] == ["-i", str(Path("/v/0.wav")), "-i", str(Path("/v/1.wav"))]
     assert_labels_balanced(c.filter_graph)
 
 
@@ -62,7 +62,7 @@ def test_music_and_voice_both_sit_under_the_voice_ducking(tmp_path):
     e = edl(audio=AudioSpec(music="m.wav"))
     c = compile_edl(e, YT, {"a.mp4": TONE}, tmp_path, voiceover=scheduled((1.0, 1.0)))
     assert "[amixed][vo_sc]sidechaincompress" in c.filter_graph        # clips + music are the ducked bed
-    assert c.input_args[-6:] == ["-stream_loop", "-1", "-i", "m.wav", "-i", "/v/0.wav"]
+    assert c.input_args[-6:] == ["-stream_loop", "-1", "-i", "m.wav", "-i", str(Path("/v/0.wav"))]
     assert_labels_balanced(c.filter_graph)
 
 

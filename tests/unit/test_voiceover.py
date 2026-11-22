@@ -30,9 +30,8 @@ def wav_info(path):
 def fake_piper(tmp_path, monkeypatch):
     """A stand-in `piper` executable: honours -m/-f, reads stdin, makes a WAV whose length depends on
     the text, and logs 'model|text' so tests can see what it was asked."""
-    script = tmp_path / "fakepiper"
-    script.write_text(textwrap.dedent(f"""\
-        #!{sys.executable}
+    script = tmp_path / "fakepiper.py"
+    script.write_text(textwrap.dedent("""\
         import os, sys, time, wave, struct
         args = sys.argv[1:]
         model = args[args.index("-m") + 1]
@@ -49,13 +48,19 @@ def fake_piper(tmp_path, monkeypatch):
             f.setnchannels(1); f.setsampwidth(2); f.setframerate(22050)
             f.writeframes(b"".join(struct.pack("<h", int(8000 * (1 if (i // 11) % 2 else -1))) for i in range(n)))
         """))
-    script.chmod(script.stat().st_mode | stat.S_IEXEC)
+    if sys.platform == "win32":  # no shebangs on Windows: a .cmd launcher runs the script
+        launcher = tmp_path / "fakepiper.cmd"
+        launcher.write_text(f'@"{sys.executable}" "{script}" %*\r\n')
+    else:
+        launcher = tmp_path / "fakepiper"
+        launcher.write_text(f"#!{sys.executable}\n" + script.read_text())
+        launcher.chmod(launcher.stat().st_mode | stat.S_IEXEC)
     log = tmp_path / "piper.log"
     monkeypatch.setenv("FAKE_PIPER_LOG", str(log))
     voice_en, voice_ar = tmp_path / "en.onnx", tmp_path / "ar.onnx"
     voice_en.write_bytes(b"x")
     voice_ar.write_bytes(b"x")
-    return SimpleNamespace(binary=str(script), log=log, en=str(voice_en), ar=str(voice_ar),
+    return SimpleNamespace(binary=str(launcher), log=log, en=str(voice_en), ar=str(voice_ar),
                            calls=lambda: log.read_text(encoding="utf-8").splitlines() if log.exists() else [])
 
 
@@ -358,7 +363,7 @@ def test_prepare_voiceover_synthesises_caches_and_schedules(tmp_path):
 def test_shipped_tts_config_builds_without_network():
     tts = build_tts(base_dir="/models-root")
     assert tts.resolve(None, "fr") == "kokoro:ff_siwis"
-    assert tts.resolve(None, "ar-TN") == "piper:/models-root/models/piper/ar_JO-kareem-medium.onnx"
+    assert tts.resolve(None, "ar-TN") == "piper:" + str(Path("/models-root") / "models/piper/ar_JO-kareem-medium.onnx")
     assert tts.resolve(None, None) == "kokoro:af_heart"
 
 
