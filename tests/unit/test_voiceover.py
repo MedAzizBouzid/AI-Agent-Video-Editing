@@ -36,8 +36,8 @@ def fake_piper(tmp_path, monkeypatch):
         args = sys.argv[1:]
         model = args[args.index("-m") + 1]
         out = args[args.index("-f") + 1]
-        text = sys.stdin.read()
-        with open(os.environ["FAKE_PIPER_LOG"], "a") as log:
+        text = sys.stdin.buffer.read().decode("utf-8")
+        with open(os.environ["FAKE_PIPER_LOG"], "a", encoding="utf-8") as log:
             log.write(model + "|" + text + "\\n")
         if os.environ.get("FAKE_PIPER_SLEEP"):
             time.sleep(float(os.environ["FAKE_PIPER_SLEEP"]))
@@ -403,3 +403,35 @@ def test_cli_reports_the_written_file(monkeypatch, capsys, tmp_path):
     monkeypatch.setattr(cli, "build_tts", lambda *a, **k: Fake())
     assert cli.main(["hello", str(tmp_path / "out"), "--language", "en"]) == 0
     assert "out.wav (0.10s, voice fake:voice)" in capsys.readouterr().out
+
+
+def test_text_is_sent_to_piper_as_utf8_whatever_the_platform_default(fake_piper, tmp_path, monkeypatch):
+    """Regression: on Windows the default encoding is cp1252, which cannot encode Arabic, so the TTS
+    call crashed. Linux defaults to UTF-8 and hides this, so assert the encoding is pinned."""
+    import subprocess
+
+    seen = []
+    real_run = subprocess.run
+
+    def spy(*args, **kwargs):
+        seen.append(kwargs)
+        return real_run(*args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", spy)
+    tts = PiperBackend({"ar": fake_piper.ar}, binary=fake_piper.binary, default_language="ar")
+    tts.synthesize("مرحبا بكم", tmp_path / "a", language="ar")
+    assert seen and all(k.get("encoding") == "utf-8" for k in seen if k.get("text"))
+    assert "مرحبا بكم" in fake_piper.calls()[0]
+
+
+def test_ffmpeg_helpers_pin_utf8_for_subprocess_text(sample_clip, monkeypatch):
+    import subprocess
+
+    from videoagent.tools import _ffmpeg
+
+    seen = []
+    real_run = subprocess.run
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: (seen.append(k), real_run(*a, **k))[1])
+    _ffmpeg.probe(sample_clip)
+    _ffmpeg.run(["-i", str(sample_clip), "-t", "0.1", "-f", "null", "-"])
+    assert len(seen) == 2 and all(k.get("encoding") == "utf-8" for k in seen)

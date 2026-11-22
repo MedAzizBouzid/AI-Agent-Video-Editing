@@ -27,7 +27,7 @@ def _bin(name: str) -> str:
 def run(args: list[str], *, loglevel: str = "error") -> subprocess.CompletedProcess[str]:
     """Run ffmpeg with the given args. Raises FFmpegError on a non-zero exit."""
     cmd = [_bin("ffmpeg"), "-hide_banner", "-nostdin", "-y", "-loglevel", loglevel, *args]
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+    proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if proc.returncode != 0:
         raise FFmpegError(
             f"ffmpeg failed (exit {proc.returncode}): {' '.join(cmd)}\n{proc.stderr[-2000:]}"
@@ -58,6 +58,8 @@ def probe(path: PathLike) -> MediaInfo:
          "-show_format", "-show_streams", str(path)],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     if proc.returncode != 0:
         raise FFmpegError(f"ffprobe failed for {path}: {proc.stderr[-1000:]}")

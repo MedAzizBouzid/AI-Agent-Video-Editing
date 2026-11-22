@@ -74,7 +74,7 @@ def read_gpu_memory() -> tuple[int, int] | None:
     try:
         proc = subprocess.run(
             ["nvidia-smi", "--query-gpu=memory.used,memory.total", "--format=csv,noheader,nounits"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True, text=True, errors="replace", timeout=10,
         )
     except (OSError, subprocess.TimeoutExpired):
         return None

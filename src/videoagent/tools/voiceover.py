@@ -109,7 +109,7 @@ class PiperBackend:
         cmd = [self.binary] + [a.format(model=model, out=out) for a in self.args]
         try:
             proc = subprocess.run(cmd, input=_squash(text), capture_output=True, text=True,
-                                  timeout=self.timeout_s)
+                                  encoding="utf-8", errors="replace", timeout=self.timeout_s)
         except FileNotFoundError as exc:
             raise TTSError(f"'{self.binary}' not found: pip install piper-tts") from exc
         except subprocess.TimeoutExpired as exc:
