@@ -14,10 +14,35 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+from pathlib import Path
 
 from videoagent.console import use_utf8_console
 from videoagent.llm import LLMError, build_client
 from videoagent.llm.backends import OpenAIBackend
+from videoagent.llm.client import find_env_file
+
+
+_AUTO = object()  # "look for the .env yourself"
+
+
+def describe_env(environ=None, env_file=_AUTO) -> list[str]:
+    """Say which .env was read and which keys are set (never the values)."""
+    environ = os.environ if environ is None else environ
+    path = find_env_file() if env_file is _AUTO else env_file
+    lines = []
+    if path is None:
+        lines.append(".env: NOT FOUND. Create a file named exactly .env (not .env.txt, not .env.example) "
+                     "next to pyproject.toml, or run from that folder.")
+    else:
+        lines.append(f".env: {path}")
+        head = Path(path).read_bytes()[:2]
+        if head in (b"\xff\xfe", b"\xfe\xff"):
+            lines.append("  WARNING: this file is saved as UTF-16 (PowerShell `>` does that), so it cannot be "
+                         "read. Re-save it as UTF-8 (in Notepad: Save As > Encoding: UTF-8).")
+    for name in ("OPENROUTER_API_KEY", "GEMINI_API_KEY", "GROQ_API_KEY"):
+        lines.append(f"  {name}: {'set' if environ.get(name) else 'EMPTY or missing'}")
+    print("\n".join(lines))
+    return lines
 
 
 def listing_backend(prov, environ=None):
@@ -42,7 +67,8 @@ def main(argv: list[str] | None = None) -> int:
     args = p.parse_args(argv)
     logging.basicConfig(level=logging.WARNING, format="%(message)s")
 
-    client = build_client(args.config)
+    client = build_client(args.config)  # loads .env into the environment
+    describe_env()  # so this runs after it: it reports what the program actually sees
     for name, state in client.chain.status().items():
         print(f"{name:12} {state}")
 

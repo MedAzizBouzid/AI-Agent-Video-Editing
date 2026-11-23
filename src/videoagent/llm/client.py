@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 from collections.abc import Callable, Mapping
 from typing import Any, TypeVar
 
@@ -133,6 +134,20 @@ def _last_error(text: str, schema: type[BaseModel]) -> ValueError:
 BackendFactory = Callable[[ProviderConfig, str], Backend]
 
 
+def find_env_file() -> Path | None:
+    """The .env to use: searched upward from the current folder first, then from this package
+    (so it is found when you run from the repo root OR from a subfolder)."""
+    try:
+        from dotenv import find_dotenv
+    except ImportError:  # pragma: no cover
+        return None
+    for kwargs in ({"usecwd": True}, {}):
+        found = find_dotenv(**kwargs)
+        if found:
+            return Path(found)
+    return None
+
+
 def build_client(
     config_path: str | os.PathLike[str] | None = None,
     *,
@@ -153,7 +168,10 @@ def build_client(
         try:
             from dotenv import load_dotenv
 
-            load_dotenv()  # never overrides variables that are already set
+            env_file = find_env_file()
+            # utf-8-sig: Windows editors often add a BOM, which would otherwise glue itself to the
+            # first variable name. Never overrides variables that are already set.
+            load_dotenv(env_file, encoding="utf-8-sig") if env_file else None
         except ImportError:  # pragma: no cover
             pass
     environ: Mapping[str, str] = os.environ if env is None else env
