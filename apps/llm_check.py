@@ -13,9 +13,23 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 
 from videoagent.console import use_utf8_console
 from videoagent.llm import LLMError, build_client
+from videoagent.llm.backends import OpenAIBackend
+
+
+def listing_backend(prov, environ=None):
+    """A backend just for listing model IDs, or None if the provider's key is not set.
+
+    Listing must work BEFORE a model ID is chosen (that is what it is for), so a placeholder model
+    does not matter here: only the API key does. PRIVACY_STRICT does not matter either, since
+    listing sends no prompt.
+    """
+    environ = os.environ if environ is None else environ
+    key = environ.get(prov.cfg.api_key_env)
+    return OpenAIBackend(prov.cfg, key) if key else None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -34,17 +48,21 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.models:
         for prov in client.chain.providers:
-            if prov.backend is None:
+            backend = listing_backend(prov)
+            if backend is None:
+                print(f"\n{prov.name}: no API key. Set {prov.cfg.api_key_env} in .env to list its models.")
                 continue
             print(f"\n{prov.name}: configured model = {prov.cfg.model}")
             try:
-                ids = prov.backend.list_models()
+                ids = backend.list_models()
             except LLMError as exc:
                 print(f"  could not list models: {exc}")
                 continue
-            for model_id in ids:
-                if not args.grep or args.grep.lower() in model_id.lower():
-                    print(f"  {model_id}")
+            shown = [m for m in ids if not args.grep or args.grep.lower() in m.lower()]
+            for model_id in shown:
+                print(f"  {model_id}")
+            if not shown:
+                print(f"  (no model matches '{args.grep}'; {len(ids)} models in total)")
 
     if args.ping:
         try:
