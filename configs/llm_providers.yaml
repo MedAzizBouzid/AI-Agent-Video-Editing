@@ -10,13 +10,17 @@ providers:
   - name: openrouter
     base_url: https://openrouter.ai/api/v1
     api_key_env: OPENROUTER_API_KEY
-    model: "REPLACE_WITH_A_:free_MODEL_ID"
-    trains_on_data: false   # check the policy of the specific model you pick
+    model: "google/gemma-4-31b-it:free"   # text + image, 262K context, multilingual
+    # Free OpenRouter endpoints are served by providers that may log prompts (the page for this one
+    # does not say; other free models say they train on them). Treat free = may train: for client
+    # footage use PRIVACY_STRICT=1 together with a paid, non-training model.
+    trains_on_data: true
+    vision: true            # the model page lists image input
 
   - name: gemini
     base_url: https://generativelanguage.googleapis.com/v1beta/openai/
     api_key_env: GEMINI_API_KEY
-    model: "REPLACE_WITH_CURRENT_MODEL_ID"
+    model: "gemini-3.5-flash-lite"   # stable; Google tells new projects to start here
     trains_on_data: true    # the free tier may train on prompts
     vision: true            # Gemini models accept images
 
