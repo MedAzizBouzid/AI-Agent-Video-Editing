@@ -60,7 +60,7 @@ def test_format_validation_error_is_readable_and_capped():
 
 def test_shipped_config_loads():
     config = load_llm_config()
-    assert [p.name for p in config.providers] == ["cerebras", "openrouter", "gemini"]
+    assert [p.name for p in config.providers] == ["openrouter", "gemini"]
     assert config.retry.max_attempts_per_provider == 2
     assert next(p for p in config.providers if p.name == "gemini").trains_on_data is True
 
