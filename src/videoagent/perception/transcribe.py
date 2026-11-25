@@ -7,9 +7,13 @@ import faster-whisper, so everything else works without it installed.
 
 from __future__ import annotations
 
+import logging
 import math
 import os
 from typing import Any
+
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")  # harmless noise on Windows
+log = logging.getLogger("videoagent.perception")
 
 from ..schemas.perception import TranscriptSegment
 from ..tools._ffmpeg import PathLike
@@ -27,7 +31,36 @@ def load_model(size: str = DEFAULT_MODEL, device: str = "auto", compute_type: st
         from faster_whisper import WhisperModel
     except ImportError as exc:  # pragma: no cover - exercised only without the package
         raise RuntimeError("faster-whisper is not installed: pip install faster-whisper") from exc
-    return WhisperModel(size, device=device, compute_type=compute_type)
+    model = WhisperModel(size, device=device, compute_type=compute_type)
+    if device != "auto":
+        return model  # the caller asked for a specific device: let any failure be loud
+    try:
+        _probe(model)
+    except RuntimeError as exc:
+        if not gpu_libraries_missing(exc):
+            raise
+        log.warning(
+            "Whisper found a GPU but its CUDA libraries are missing (%s); using the CPU instead "
+            "(slower). For GPU speed, install the CUDA 12 cuBLAS and cuDNN 9 libraries.", exc)
+        model = WhisperModel(size, device="cpu", compute_type="int8")
+    return model
+
+
+def gpu_libraries_missing(exc: BaseException) -> bool:
+    """True for the errors CTranslate2 raises when a CUDA library cannot be loaded."""
+    text = str(exc).lower()
+    return any(w in text for w in ("cublas", "cudnn", "cudart", "cuda", "dll")) and any(
+        w in text for w in ("not found", "cannot be loaded", "cannot load", "could not locate", "failed to load"))
+
+
+def _probe(model: Any) -> None:
+    """Run one second of silence through the model. CTranslate2 loads the CUDA libraries lazily, on
+    the first real computation, so a broken GPU setup would otherwise only show up mid-job."""
+    import numpy as np
+
+    segments, _ = model.transcribe(np.zeros(16000, dtype=np.float32), language="en", vad_filter=False)
+    for _ in segments:
+        pass
 
 
 # Approximate VRAM in MB for faster-whisper in float16 (decoder state and activations included).

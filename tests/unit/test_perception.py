@@ -302,3 +302,58 @@ def test_cli_prints_compact_view(monkeypatch, capsys, tmp_path):
     monkeypatch.setattr(cli, "build_perception_doc", lambda *a, **k: make_doc())
     assert cli.main([str(tmp_path / "raw.mp4")]) == 0
     assert "SOURCE raw.mp4" in capsys.readouterr().out
+
+
+def _fake_faster_whisper(monkeypatch, fail_on):
+    """A stand-in faster_whisper module whose models raise `fail_on` on any computation, per device."""
+    import sys
+    import types
+
+    made = []
+
+    class FakeModel:
+        def __init__(self, size, device="auto", compute_type="auto"):
+            self.device, self.compute_type = device, compute_type
+            made.append(self)
+
+        def transcribe(self, audio, **kw):
+            if self.device in fail_on:
+                raise RuntimeError(fail_on[self.device])
+            return iter(()), None
+
+    mod = types.ModuleType("faster_whisper")
+    mod.WhisperModel = FakeModel
+    monkeypatch.setitem(sys.modules, "faster_whisper", mod)
+    return made
+
+
+def test_missing_cuda_libraries_fall_back_to_the_cpu(monkeypatch, caplog):
+    from videoagent.perception.transcribe import load_model
+
+    made = _fake_faster_whisper(monkeypatch, {"auto": "Library cublas64_12.dll is not found or cannot be loaded"})
+    model = load_model("small")
+    assert model.device == "cpu" and model.compute_type == "int8" and len(made) == 2
+    assert "CUDA libraries are missing" in caplog.text
+
+
+def test_other_runtime_errors_are_not_swallowed(monkeypatch):
+    from videoagent.perception.transcribe import load_model
+
+    _fake_faster_whisper(monkeypatch, {"auto": "something else entirely broke"})
+    with pytest.raises(RuntimeError, match="something else"):
+        load_model("small")
+
+
+def test_an_explicit_device_is_never_silently_changed(monkeypatch):
+    from videoagent.perception.transcribe import load_model
+
+    made = _fake_faster_whisper(monkeypatch, {"cuda": "Library cublas64_12.dll is not found or cannot be loaded"})
+    model = load_model("small", device="cuda")      # not probed: the error would surface at first use
+    assert model.device == "cuda" and len(made) == 1
+
+
+def test_a_working_gpu_is_kept(monkeypatch):
+    from videoagent.perception.transcribe import load_model
+
+    made = _fake_faster_whisper(monkeypatch, {})
+    assert load_model("small").device == "auto" and len(made) == 1
