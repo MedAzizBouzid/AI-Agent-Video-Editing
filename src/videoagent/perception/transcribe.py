@@ -41,7 +41,7 @@ def load_model(size: str = DEFAULT_MODEL, device: str = "auto", compute_type: st
             raise
         log.warning(
             "Whisper found a GPU but its CUDA libraries are missing (%s); using the CPU instead "
-            "(slower). For GPU speed install cuBLAS (CUDA 12) and cuDNN 9: on Windows use the libs release at github.com/Purfview/whisper-standalone-win and put the DLLs in a folder on PATH.", exc)
+            "(slower; medium and large models can take many minutes). For GPU speed install cuBLAS (CUDA 12) and cuDNN 9: on Windows use the libs release at github.com/Purfview/whisper-standalone-win and put the DLLs in a folder on PATH.", exc)
         model = WhisperModel(size, device="cpu", compute_type="int8")
     return model
 
@@ -69,15 +69,34 @@ WHISPER_VRAM_MB = {"tiny": 500, "base": 700, "small": 1500, "medium": 3500,
                    "large-v2": 5500, "large-v3": 5500}
 
 
+# The same models quantised to int8 weights (compute_type "int8_float16"): roughly 60% of the memory,
+# usually with no audible loss of accuracy. Also estimates.
+WHISPER_VRAM_MB_INT8 = {"tiny": 300, "base": 450, "small": 900, "medium": 2000,
+                        "large-v2": 3300, "large-v3": 3300}
+
+
+def choose_compute_type(size: str, budget_mb: int, compute_type: str = "auto") -> tuple[str, int]:
+    """(compute_type, declared VRAM in MB) for loading `size` on a card with `budget_mb` to spend.
+
+    "auto" means: full precision if it fits the budget, otherwise int8_float16 so that a large
+    model still runs on a small card. An explicit choice is respected, never overridden.
+    """
+    full = WHISPER_VRAM_MB.get(size, 3000)
+    quantised = WHISPER_VRAM_MB_INT8.get(size, 1800)
+    if compute_type == "auto":
+        return ("auto", full) if full <= budget_mb else ("int8_float16", quantised)
+    return compute_type, quantised if compute_type.startswith("int8") else full
+
+
 def register_whisper(
     manager: Any, size: str = DEFAULT_MODEL, device: str = "auto", compute_type: str = "auto"
 ) -> str:
     """Register Whisper with a ModelManager and return the name to pass to `manager.use()`."""
     name = f"whisper:{size}"
-    manager.register(
-        name, lambda: load_model(size, device, compute_type),
-        vram_mb=WHISPER_VRAM_MB.get(size, 3000),
-    )
+    compute_type, vram_mb = choose_compute_type(size, manager.budget_mb, compute_type)
+    if compute_type != "auto":
+        log.info("Whisper %s: using compute_type=%s (~%d MB)", size, compute_type, vram_mb)
+    manager.register(name, lambda: load_model(size, device, compute_type), vram_mb=vram_mb)
     return name
 
 

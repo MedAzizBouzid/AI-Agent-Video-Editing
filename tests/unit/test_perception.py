@@ -357,3 +357,41 @@ def test_a_working_gpu_is_kept(monkeypatch):
 
     made = _fake_faster_whisper(monkeypatch, {})
     assert load_model("small").device == "auto" and len(made) == 1
+
+
+def test_a_large_model_is_quantised_to_fit_a_small_card():
+    from videoagent.perception.transcribe import choose_compute_type
+
+    assert choose_compute_type("large-v3", 5222) == ("int8_float16", 3300)   # 6 GB card: 5500 would not fit
+    assert choose_compute_type("small", 5222) == ("auto", 1500)              # fits at full precision: keep it
+    assert choose_compute_type("large-v3", 9000) == ("auto", 5500)           # a big card keeps full precision
+
+
+def test_an_explicit_compute_type_is_respected_even_if_it_does_not_fit():
+    from videoagent.perception.transcribe import choose_compute_type
+
+    assert choose_compute_type("large-v3", 5222, "float16") == ("float16", 5500)
+    assert choose_compute_type("medium", 5222, "int8") == ("int8", 2000)
+
+
+def test_registering_large_v3_on_a_6gb_card_no_longer_raises_and_loads_quantised(monkeypatch):
+    from videoagent.perception import transcribe as tr
+    from videoagent.runtime import ModelManager
+
+    loaded = []
+    monkeypatch.setattr(tr, "load_model", lambda size, device, compute_type: loaded.append((size, compute_type)) or object())
+    manager = ModelManager(budget_mb=5222)
+    name = tr.register_whisper(manager, "large-v3")
+    with manager.use(name):
+        pass
+    assert loaded == [("large-v3", "int8_float16")] and manager.used_mb() == 3300
+
+
+def test_a_model_that_cannot_fit_even_quantised_is_still_refused():
+    import pytest as _pytest
+
+    from videoagent.perception import transcribe as tr
+    from videoagent.runtime import ModelManager
+
+    with _pytest.raises(ValueError, match="VRAM budget"):
+        tr.register_whisper(ModelManager(budget_mb=2000), "large-v3")
