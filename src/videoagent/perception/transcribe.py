@@ -41,7 +41,7 @@ def load_model(size: str = DEFAULT_MODEL, device: str = "auto", compute_type: st
             raise
         log.warning(
             "Whisper found a GPU but its CUDA libraries are missing (%s); using the CPU instead "
-            "(slower). For GPU speed, install the CUDA 12 cuBLAS and cuDNN 9 libraries.", exc)
+            "(slower). For GPU speed install cuBLAS (CUDA 12) and cuDNN 9: on Windows use the libs release at github.com/Purfview/whisper-standalone-win and put the DLLs in a folder on PATH.", exc)
         model = WhisperModel(size, device="cpu", compute_type="int8")
     return model
 

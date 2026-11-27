@@ -6,6 +6,7 @@ import json
 
 from ...config import PlatformSpec
 from ...edl.auto_captions import captions_from_transcript
+from ...edl.style import apply_house_style
 from ...llm.errors import LLMError
 from ...llm.prompts import load_prompt
 from ...perception.compact import compact_for_llm
@@ -61,7 +62,7 @@ def make_plan(deps: Deps, cfg: AgentConfig):
                     "events": [f"plan: failed ({type(exc).__name__})"]}
 
         edl = edl.model_copy(update={"platform": platform})  # the graph, not the LLM, owns this
-        notes = []
+        edl, notes = apply_house_style(edl, brief)  # before captions: merging keeps every output time
         if not brief.captions:
             edl = edl.model_copy(update={"captions": []})
         elif not edl.captions:

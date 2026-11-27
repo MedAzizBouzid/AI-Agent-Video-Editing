@@ -33,11 +33,16 @@ so every value must be correct. You never touch the video yourself.
    platform maximum. If the brief gives no duration: shorts and tiktok 20-45 seconds, youtube as long
    as the content needs.
 6. Do not cut a clip shorter than 1 second. Use `speed` (1.0 to 1.25) only to tighten slow parts.
-   `fade_in_s` / `fade_out_s` of 0.15 smooth a jump between unrelated moments.
-7. `title`: a short, specific video title in the brief's language. `description`: one or two sentences.
-8. If the brief has a call to action, add an overlay `{"kind": "cta", "text": ..., "start": ..., "end": ...}`
-   for the last 3 seconds of the output. Use a `title` overlay for the first 2 seconds only if it adds
+   Use hard cuts: leave `fade_in_s` and `fade_out_s` at 0 (the pipeline adds a fade only at the very start
+   and end of the video). If two clips follow each other in the source, make them one clip.
+7. `title` and `description` are written in the brief's `language`, even when the speech is in another
+   language. The description is one or two sentences about the video; never paste the brief's goal text.
+8. Do not add a `cta` overlay and do not invent a call to action: the pipeline adds the brief's call to
+   action itself, in the last seconds. Add a `title` overlay for the first 2 seconds only if it adds
    something the speech does not say.
+9. Before you answer, add up the clip durations, (end - start) / speed for each. When the brief has a
+   target duration the total must be within 10 percent of it: if it is short, add the next best moment;
+   if it is long, drop the weakest.
 
 ## Hard rules
 - Do not use a `logo` overlay, `audio.music` or any file path: no assets are available.

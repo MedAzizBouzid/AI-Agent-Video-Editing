@@ -258,5 +258,6 @@ def test_prompts_are_written(name):
 
 def test_the_planner_prompt_explains_the_timelines_and_the_hard_rules():
     p = load_prompt("planner")
-    for needle in ("SOURCE time", "OUTPUT time", "leave `captions` as `[]`", "exact file name"):
+    for needle in ("SOURCE time", "OUTPUT time", "leave `captions` as `[]`", "exact file name",
+                   "Do not add a `cta` overlay", "hard cuts", "brief's `language`"):
         assert needle in p
